@@ -1,0 +1,170 @@
+Power Query M-code - HVAC PM Autoloader 
+
+
+HVAC_NTP (with Folder path)
+let
+    folderpath = Excel.CurrentWorkbook() {[Name="folderpath"]} [Content] {0} [Column1],
+    Source = Excel.Workbook(File.Contents(folderpath&"HVAC PM Builder.xlsm"), null, true),
+    HVAC_NTP_DefinedName = Source{[Item="HVAC_NTP",Kind="DefinedName"]}[Data],
+    #"Promoted Headers" = Table.PromoteHeaders(HVAC_NTP_DefinedName, [PromoteAllScalars=true]),
+    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Area", type text}, {"District", type text}, {"Invoicing Finance Number", type text}, {"Station Name", type text}, {"Street Address", type text}, {"City", type text}, {"ST", type text}, {"ZIP CODE + 4", type text}, {"County", type text}, {"Type of Equipment #(lf)(RTU, Boiler, AHU, etc)", type text}, {"Brand/Manufacturer", type text}, {"Model #", type text}, {"Serial #", type text}, {"Eq Name", type text}, {"Short Eq", type text}, {"Quantity", Int64.Type}, {"Jan#(lf)", type number}, {"Apr#(lf)", type number}, {"July#(lf)", type number}, {"Oct#(lf)", type number}, {"POP End", type date}, {"Supplier", type text}})
+in
+    #"Changed Type"
+
+PowerNTP:
+let
+    folderpath = Excel.CurrentWorkbook() {[Name="folderpath"]} [Content] {0} [Column1],
+    
+    Source = Excel.Workbook(File.Contents(folderpath&"HVAC PM Builder.xlsm"), null, true),
+    HVAC_NTP_DefinedName = Source{[Item="HVAC_NTP",Kind="DefinedName"]}[Data],
+    #"Promoted Headers" = Table.PromoteHeaders(HVAC_NTP_DefinedName, [PromoteAllScalars=true]),
+    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Area", type text}, {"District", type text}, {"Invoicing Finance Number", type text}, {"Station Name", type text}, {"Street Address", type text}, {"City", type text}, {"ST", type text}, {"ZIP CODE + 4", type text}, {"County", type text}, {"Type of Equipment #(lf)(RTU, Boiler, AHU, etc)", type text}, {"Brand/Manufacturer", type text}, {"Model #", type text}, {"Serial #", type text}, {"Eq Name", type text}, {"Short Eq", type text}, {"Quantity", Int64.Type}, {"Jan#(lf)", type number}, {"Apr#(lf)", type number}, {"July#(lf)", type number}, {"Oct#(lf)", type number}, {"POP End", type date}, {"Supplier", type text}}),
+ 
+    #"Unpivoted Only Selected Columns" = Table.Unpivot(#"Changed Type", {"Jan#(lf)", "Apr#(lf)", "July#(lf)", "Oct#(lf)"}, "Attribute", "Value"),
+    #"Trimmed Text" = Table.TransformColumns(#"Unpivoted Only Selected Columns",{{"Attribute", Text.Trim, type text}}),
+    #"Cleaned Text" = Table.TransformColumns(#"Trimmed Text",{{"Attribute", Text.Clean, type text}}),
+    #"Renamed Columns" = Table.RenameColumns(#"Cleaned Text",{{"Attribute", "Month Name"}, {"Value", "NTE"}}),
+    #"Merged Queries" = Table.NestedJoin(#"Renamed Columns", {"Month Name"}, #"Months & Quarters", {"Month Name"}, "Months & Quarters", JoinKind.LeftOuter),
+    #"Expanded Months & Quarters" = Table.ExpandTableColumn(#"Merged Queries", "Months & Quarters", {"Quarter", "Start Date", "3 month breakout for inv"}, {"Quarter", "Start Date", "3 month breakout for inv"}),
+    #"Inserted Merged Column" = Table.AddColumn(#"Expanded Months & Quarters", "Concat", each Text.Combine({[Short Eq], [Quarter]}, "-"), type text),
+    #"Merged Queries1" = Table.NestedJoin(#"Inserted Merged Column", {"Concat"}, #"NEW Procedure Helper", {"Unique Id"}, "NEW Procedure Helper", JoinKind.LeftOuter),
+    #"Expanded NEW Procedure Helper" = Table.ExpandTableColumn(#"Merged Queries1", "NEW Procedure Helper", {"JAQS", "Quarter", "OLD Procedure", "NEW Procedure", "Other:", "Freq Group", "Starte Date", "1", "0", "1_1"}, {"JAQS", "Quarter.1", "OLD Procedure", "NEW Procedure", "Other:", "Freq Group", "Starte Date", "1", "0", "1_1"}),
+    #"Merged Queries2" = Table.NestedJoin(#"Expanded NEW Procedure Helper", {"Invoicing Finance Number"}, #"pm loader builder", {"WorkZoneNumber"}, "pm loader builder", JoinKind.LeftOuter),
+    #"Expanded pm loader builder" = Table.ExpandTableColumn(#"Merged Queries2", "pm loader builder", {"WorkZoneName 1", "Path"}, {"WorkZoneName 1", "Path"}),
+    #"Merged Columns" = Table.CombineColumns(#"Expanded pm loader builder",{"WorkZoneName 1", "Quarter.1"},Combiner.CombineTextByDelimiter("-", QuoteStyle.None),"PM Name"),
+    #"Inserted Merged Column1" = Table.AddColumn(#"Merged Columns", "Long Path", each Text.Combine({[Path], [Eq Name]}, ">"), type text),
+    #"Filtered Rows" = Table.SelectRows(#"Inserted Merged Column1", each [NTE] <> 0)
+in
+    #"Filtered Rows"
+
+
+NTE:
+let
+    folderpath = Excel.CurrentWorkbook() {[Name="folderpath"]} [Content] {0} [Column1],
+    Source = Excel.Workbook(File.Contents(folderpath&"HVAC PM Builder.xlsm"), null, true),
+    HVAC_NTP_DefinedName = Source{[Item="HVAC_NTP",Kind="DefinedName"]}[Data],
+    #"Promoted Headers" = Table.PromoteHeaders(HVAC_NTP_DefinedName, [PromoteAllScalars=true]),
+    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Area", type text}, {"District", type text}, {"Invoicing Finance Number", type text}, {"Station Name", type text}, {"Street Address", type text}, {"City", type text}, {"ST", type text}, {"ZIP CODE + 4", type text}, {"County", type text}, {"Type of Equipment #(lf)(RTU, Boiler, AHU, etc)", type text}, {"Brand/Manufacturer", type text}, {"Model #", type text}, {"Serial #", type text}, {"Eq Name", type text}, {"Short Eq", type text}, {"Quantity", Int64.Type}, {"Jan#(lf)", type number}, {"Apr#(lf)", type number}, {"July#(lf)", type number}, {"Oct#(lf)", type number}, {"POP End", type date}, {"Supplier", type text}}),
+
+#"Unpivoted Only Selected Columns" = Table.Unpivot(#"Changed Type", {"Jan#(lf)", "Apr#(lf)", "July#(lf)", "Oct#(lf)"}, "Attribute", "Value"),
+    #"Trimmed Text" = Table.TransformColumns(#"Unpivoted Only Selected Columns",{{"Attribute", Text.Trim, type text}}),
+    #"Cleaned Text" = Table.TransformColumns(#"Trimmed Text",{{"Attribute", Text.Clean, type text}}),
+    #"Renamed Columns" = Table.RenameColumns(#"Cleaned Text",{{"Attribute", "Month Name"}, {"Value", "NTE"}}),
+    #"Merged Queries" = Table.NestedJoin(#"Renamed Columns", {"Month Name"}, #"Months & Quarters", {"Month Name"}, "Months & Quarters", JoinKind.LeftOuter),
+    #"Expanded Months & Quarters" = Table.ExpandTableColumn(#"Merged Queries", "Months & Quarters", {"Quarter", "Start Date", "3 month breakout for inv"}, {"Quarter", "Start Date", "3 month breakout for inv"}),
+    #"Inserted Merged Column" = Table.AddColumn(#"Expanded Months & Quarters", "Concat", each Text.Combine({[Short Eq], [Quarter]}, "-"), type text),
+    #"Merged Queries1" = Table.NestedJoin(#"Inserted Merged Column", {"Concat"}, #"NEW Procedure Helper", {"Unique Id"}, "NEW Procedure Helper", JoinKind.LeftOuter),
+    #"Expanded NEW Procedure Helper" = Table.ExpandTableColumn(#"Merged Queries1", "NEW Procedure Helper", {"JAQS", "Quarter", "OLD Procedure", "NEW Procedure", "Other:", "Freq Group", "Starte Date", "1", "0", "1_1"}, {"JAQS", "Quarter.1", "OLD Procedure", "NEW Procedure", "Other:", "Freq Group", "Starte Date", "1", "0", "1_1"}),
+    #"Merged Queries2" = Table.NestedJoin(#"Expanded NEW Procedure Helper", {"Invoicing Finance Number"}, #"pm loader builder", {"WorkZoneNumber"}, "pm loader builder", JoinKind.LeftOuter),
+    #"Expanded pm loader builder" = Table.ExpandTableColumn(#"Merged Queries2", "pm loader builder", {"WorkZoneName 1", "Path"}, {"WorkZoneName 1", "Path"}),
+    #"Merged Columns" = Table.CombineColumns(#"Expanded pm loader builder",{"WorkZoneName 1", "Quarter.1"},Combiner.CombineTextByDelimiter("-", QuoteStyle.None),"PM Name"),
+    #"Inserted Merged Column1" = Table.AddColumn(#"Merged Columns", "Long Path", each Text.Combine({[Path], [Eq Name]}, ">"), type text),
+    #"Filtered Rows" = Table.SelectRows(#"Inserted Merged Column1", each [NTE] <> 0),
+    #"Grouped Rows" = Table.Group(#"Filtered Rows", {"Invoicing Finance Number", "Quarter", "PM Name", "Start Date", "POP End"}, {{"NTE", each List.Sum([NTE]), type number}}),
+    #"Added Custom" = Table.AddColumn(#"Grouped Rows", "INV", each [NTE] /3),
+    #"Changed Type1" = Table.TransformColumnTypes(#"Added Custom",{{"INV", Currency.Type}, {"NTE", Currency.Type}})
+in
+    #"Changed Type1"
+
+
+Description: 
+let
+    folderpath = Excel.CurrentWorkbook() {[Name="folderpath"]} [Content] {0} [Column1],
+    Source = Excel.Workbook(File.Contents(folderpath&"HVAC PM Builder.xlsm"), null, true),
+    HVAC_NTP_DefinedName = Source{[Item="HVAC_NTP",Kind="DefinedName"]}[Data],
+    #"Promoted Headers" = Table.PromoteHeaders(HVAC_NTP_DefinedName, [PromoteAllScalars=true]),
+    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Area", type text}, {"District", type text}, {"Invoicing Finance Number", type text}, {"Station Name", type text}, {"Street Address", type text}, {"City", type text}, {"ST", type text}, {"ZIP CODE + 4", type text}, {"County", type text}, {"Type of Equipment #(lf)(RTU, Boiler, AHU, etc)", type text}, {"Brand/Manufacturer", type text}, {"Model #", type text}, {"Serial #", type text}, {"Eq Name", type text}, {"Short Eq", type text}, {"Quantity", Int64.Type}, {"Jan#(lf)", type number}, {"Apr#(lf)", type number}, {"July#(lf)", type number}, {"Oct#(lf)", type number}, {"POP End", type date}, {"Supplier", type text}}),
+
+ #"Unpivoted Only Selected Columns" = Table.Unpivot(#"Changed Type", {"Jan#(lf)", "Apr#(lf)", "July#(lf)", "Oct#(lf)"}, "Attribute", "Value"),
+    #"Trimmed Text" = Table.TransformColumns(#"Unpivoted Only Selected Columns",{{"Attribute", Text.Trim, type text}}),
+    #"Cleaned Text" = Table.TransformColumns(#"Trimmed Text",{{"Attribute", Text.Clean, type text}}),
+    #"Renamed Columns" = Table.RenameColumns(#"Cleaned Text",{{"Attribute", "Month Name"}, {"Value", "NTE"}}),
+    #"Merged Queries" = Table.NestedJoin(#"Renamed Columns", {"Month Name"}, #"Months & Quarters", {"Month Name"}, "Months & Quarters", JoinKind.LeftOuter),
+    #"Expanded Months & Quarters" = Table.ExpandTableColumn(#"Merged Queries", "Months & Quarters", {"Quarter", "Start Date", "3 month breakout for inv"}, {"Quarter", "Start Date", "3 month breakout for inv"}),
+    #"Inserted Merged Column" = Table.AddColumn(#"Expanded Months & Quarters", "Concat", each Text.Combine({[Short Eq], [Quarter]}, "-"), type text),
+    #"Merged Queries1" = Table.NestedJoin(#"Inserted Merged Column", {"Concat"}, #"NEW Procedure Helper", {"Unique Id"}, "NEW Procedure Helper", JoinKind.LeftOuter),
+    #"Expanded NEW Procedure Helper" = Table.ExpandTableColumn(#"Merged Queries1", "NEW Procedure Helper", {"JAQS", "Quarter", "OLD Procedure", "NEW Procedure", "Other:", "Freq Group", "Starte Date", "1", "0", "1_1"}, {"JAQS", "Quarter.1", "OLD Procedure", "NEW Procedure", "Other:", "Freq Group", "Starte Date", "1", "0", "1_1"}),
+    #"Merged Queries2" = Table.NestedJoin(#"Expanded NEW Procedure Helper", {"Invoicing Finance Number"}, #"pm loader builder", {"WorkZoneNumber"}, "pm loader builder", JoinKind.LeftOuter),
+    #"Expanded pm loader builder" = Table.ExpandTableColumn(#"Merged Queries2", "pm loader builder", {"WorkZoneName 1", "Path"}, {"WorkZoneName 1", "Path"}),
+    #"Merged Columns" = Table.CombineColumns(#"Expanded pm loader builder",{"WorkZoneName 1", "Quarter.1"},Combiner.CombineTextByDelimiter("-", QuoteStyle.None),"PM Name"),
+    #"Inserted Merged Column1" = Table.AddColumn(#"Merged Columns", "Long Path", each Text.Combine({[Path], [Eq Name]}, ">"), type text),
+    #"Filtered Rows" = Table.SelectRows(#"Inserted Merged Column1", each [NTE] <> 0),
+    #"Removed Other Columns" = Table.SelectColumns(#"Filtered Rows",{"Invoicing Finance Number", "Quarter", "Long Path", "Other:", "Freq Group"}),
+    #"Merged Columns1" = Table.CombineColumns(#"Removed Other Columns",{"Long Path", "Other:", "Freq Group"},Combiner.CombineTextByDelimiter(";", QuoteStyle.None),"Merged"),
+    #"Grouped Rows" = Table.Group(#"Merged Columns1", {"Invoicing Finance Number", "Quarter"}, {{"Count", each _, type table [Invoicing Finance Number=nullable text, Quarter=nullable text, Merged=text]}}),
+    #"Added Custom" = Table.AddColumn(#"Grouped Rows", "Custom", each Table.SelectColumns([Count],"Merged")),
+    #"Added Custom1" = Table.AddColumn(#"Added Custom", "Custom.1", each Table.Transpose([Custom])),
+    #"Removed Columns" = Table.RemoveColumns(#"Added Custom1",{"Count", "Custom"}),
+    #"Expanded Custom.1" = Table.ExpandTableColumn(#"Removed Columns", "Custom.1", {"Column1", "Column2", "Column3", "Column4", "Column5", "Column6", "Column7", "Column8"}, {"Column1", "Column2", "Column3", "Column4", "Column5", "Column6", "Column7", "Column8"}),
+    #"Merged Columns2" = Table.CombineColumns(#"Expanded Custom.1",{"Column1", "Column2", "Column3", "Column4", "Column5", "Column6", "Column7", "Column8"},Combiner.CombineTextByDelimiter(";", QuoteStyle.None),"Merged"),
+    #"Split Column by Delimiter" = Table.SplitColumn(#"Merged Columns2", "Merged", Splitter.SplitTextByDelimiter(";", QuoteStyle.Csv), {"Merged.1", "Merged.2", "Merged.3", "Merged.4", "Merged.5", "Merged.6", "Merged.7", "Merged.8", "Merged.9", "Merged.10", "Merged.11", "Merged.12", "Merged.13", "Merged.14", "Merged.15", "Merged.16", "Merged.17", "Merged.18", "Merged.19", "Merged.20", "Merged.21", "Merged.22", "Merged.23", "Merged.24"}),
+    #"Changed Type1" = Table.TransformColumnTypes(#"Split Column by Delimiter",{{"Merged.1", type text}, {"Merged.2", type text}, {"Merged.3", type text}, {"Merged.4", type text}, {"Merged.5", type text}, {"Merged.6", type text}, {"Merged.7", type text}, {"Merged.8", type text}, {"Merged.9", type text}, {"Merged.10", type text}, {"Merged.11", type text}, {"Merged.12", type text}, {"Merged.13", type text}, {"Merged.14", type text}, {"Merged.15", type text}, {"Merged.16", type text}, {"Merged.17", type text}, {"Merged.18", type text}, {"Merged.19", type text}, {"Merged.20", type text}, {"Merged.21", type text}, {"Merged.22", type text}, {"Merged.23", type text}, {"Merged.24", type text}})
+in
+    #"Changed Type1"
+
+
+Procedure:
+let
+    folderpath = Excel.CurrentWorkbook() {[Name="folderpath"]} [Content] {0} [Column1],
+    Source = Excel.Workbook(File.Contents(folderpath&"HVAC PM Builder.xlsm"), null, true),
+    HVAC_NTP_DefinedName = Source{[Item="HVAC_NTP",Kind="DefinedName"]}[Data],
+    #"Promoted Headers" = Table.PromoteHeaders(HVAC_NTP_DefinedName, [PromoteAllScalars=true]),
+    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Area", type text}, {"District", type text}, {"Invoicing Finance Number", type text}, {"Station Name", type text}, {"Street Address", type text}, {"City", type text}, {"ST", type text}, {"ZIP CODE + 4", type text}, {"County", type text}, {"Type of Equipment #(lf)(RTU, Boiler, AHU, etc)", type text}, {"Brand/Manufacturer", type text}, {"Model #", type text}, {"Serial #", type text}, {"Eq Name", type text}, {"Short Eq", type text}, {"Quantity", Int64.Type}, {"Jan#(lf)", type number}, {"Apr#(lf)", type number}, {"July#(lf)", type number}, {"Oct#(lf)", type number}, {"POP End", type date}, {"Supplier", type text}}),
+ 
+ #"Unpivoted Only Selected Columns" = Table.Unpivot(#"Changed Type", {"Jan#(lf)", "Apr#(lf)", "July#(lf)", "Oct#(lf)"}, "Attribute", "Value"),
+    #"Trimmed Text" = Table.TransformColumns(#"Unpivoted Only Selected Columns",{{"Attribute", Text.Trim, type text}}),
+    #"Cleaned Text" = Table.TransformColumns(#"Trimmed Text",{{"Attribute", Text.Clean, type text}}),
+    #"Renamed Columns" = Table.RenameColumns(#"Cleaned Text",{{"Attribute", "Month Name"}, {"Value", "NTE"}}),
+    #"Merged Queries" = Table.NestedJoin(#"Renamed Columns", {"Month Name"}, #"Months & Quarters", {"Month Name"}, "Months & Quarters", JoinKind.LeftOuter),
+    #"Expanded Months & Quarters" = Table.ExpandTableColumn(#"Merged Queries", "Months & Quarters", {"Quarter", "Start Date", "3 month breakout for inv"}, {"Quarter", "Start Date", "3 month breakout for inv"}),
+    #"Inserted Merged Column" = Table.AddColumn(#"Expanded Months & Quarters", "Concat", each Text.Combine({[Short Eq], [Quarter]}, "-"), type text),
+    #"Merged Queries1" = Table.NestedJoin(#"Inserted Merged Column", {"Concat"}, #"NEW Procedure Helper", {"Unique Id"}, "NEW Procedure Helper", JoinKind.LeftOuter),
+    #"Expanded NEW Procedure Helper" = Table.ExpandTableColumn(#"Merged Queries1", "NEW Procedure Helper", {"JAQS", "Quarter", "OLD Procedure", "NEW Procedure", "Other:", "Freq Group", "Starte Date", "1", "0", "1_1"}, {"JAQS", "Quarter.1", "OLD Procedure", "NEW Procedure", "Other:", "Freq Group", "Starte Date", "1", "0", "1_1"}),
+    #"Merged Queries2" = Table.NestedJoin(#"Expanded NEW Procedure Helper", {"Invoicing Finance Number"}, #"pm loader builder", {"WorkZoneNumber"}, "pm loader builder", JoinKind.LeftOuter),
+    #"Expanded pm loader builder" = Table.ExpandTableColumn(#"Merged Queries2", "pm loader builder", {"WorkZoneName 1", "Path"}, {"WorkZoneName 1", "Path"}),
+    #"Merged Columns" = Table.CombineColumns(#"Expanded pm loader builder",{"WorkZoneName 1", "Quarter.1"},Combiner.CombineTextByDelimiter("-", QuoteStyle.None),"PM Name"),
+    #"Inserted Merged Column1" = Table.AddColumn(#"Merged Columns", "Long Path", each Text.Combine({[Path], [Eq Name]}, ">"), type text),
+    #"Filtered Rows" = Table.SelectRows(#"Inserted Merged Column1", each [NTE] <> 0),
+    #"Removed Other Columns" = Table.SelectColumns(#"Filtered Rows",{"Invoicing Finance Number", "Quarter", "NEW Procedure", "Starte Date", "1", "0", "1_1", "Long Path"}),
+    #"Merged Columns1" = Table.CombineColumns(Table.TransformColumnTypes(#"Removed Other Columns", {{"Starte Date", type text}, {"1", type text}, {"0", type text}, {"1_1", type text}}, "en-US"),{"NEW Procedure", "Starte Date", "1", "0", "1_1", "Long Path"},Combiner.CombineTextByDelimiter(";", QuoteStyle.None),"Merged"),
+    #"Grouped Rows" = Table.Group(#"Merged Columns1", {"Invoicing Finance Number", "Quarter"}, {{"Count", each _, type table [Invoicing Finance Number=nullable text, Quarter=nullable text, Merged=text]}}),
+    #"Added Custom" = Table.AddColumn(#"Grouped Rows", "Custom", each Table.SelectColumns([Count],"Merged")),
+    #"Added Custom1" = Table.AddColumn(#"Added Custom", "Custom.1", each Table.Transpose([Custom])),
+    #"Removed Columns" = Table.RemoveColumns(#"Added Custom1",{"Count", "Custom"}),
+    #"Expanded Custom.1" = Table.ExpandTableColumn(#"Removed Columns", "Custom.1", {"Column1", "Column2", "Column3", "Column4", "Column5", "Column6", "Column7", "Column8"}, {"Column1", "Column2", "Column3", "Column4", "Column5", "Column6", "Column7", "Column8"}),
+    #"Merged Columns2" = Table.CombineColumns(#"Expanded Custom.1",{"Column1", "Column2", "Column3", "Column4", "Column5", "Column6", "Column7", "Column8"},Combiner.CombineTextByDelimiter(";", QuoteStyle.None),"Merged"),
+    #"Split Column by Delimiter" = Table.SplitColumn(#"Merged Columns2", "Merged", Splitter.SplitTextByDelimiter(";", QuoteStyle.Csv), {"Merged.1", "Merged.2", "Merged.3", "Merged.4", "Merged.5", "Merged.6", "Merged.7", "Merged.8", "Merged.9", "Merged.10", "Merged.11", "Merged.12", "Merged.13", "Merged.14", "Merged.15", "Merged.16", "Merged.17", "Merged.18", "Merged.19", "Merged.20", "Merged.21", "Merged.22", "Merged.23", "Merged.24", "Merged.25", "Merged.26", "Merged.27", "Merged.28", "Merged.29", "Merged.30", "Merged.31", "Merged.32", "Merged.33", "Merged.34", "Merged.35", "Merged.36", "Merged.37", "Merged.38", "Merged.39", "Merged.40", "Merged.41", "Merged.42", "Merged.43", "Merged.44", "Merged.45", "Merged.46", "Merged.47", "Merged.48"}),
+    #"Changed Type1" = Table.TransformColumnTypes(#"Split Column by Delimiter",{{"Merged.1", type text}, {"Merged.2", type date}, {"Merged.3", Int64.Type}, {"Merged.4", Int64.Type}, {"Merged.5", Int64.Type}, {"Merged.6", type text}, {"Merged.7", type text}, {"Merged.8", type date}, {"Merged.9", Int64.Type}, {"Merged.10", Int64.Type}, {"Merged.11", Int64.Type}, {"Merged.12", type text}, {"Merged.13", type text}, {"Merged.14", type date}, {"Merged.15", Int64.Type}, {"Merged.16", Int64.Type}, {"Merged.17", Int64.Type}, {"Merged.18", type text}, {"Merged.19", type text}, {"Merged.20", type date}, {"Merged.21", Int64.Type}, {"Merged.22", Int64.Type}, {"Merged.23", Int64.Type}, {"Merged.24", type text}, {"Merged.25", type text}, {"Merged.26", type date}, {"Merged.27", Int64.Type}, {"Merged.28", Int64.Type}, {"Merged.29", Int64.Type}, {"Merged.30", type text}, {"Merged.31", type text}, {"Merged.32", type date}, {"Merged.33", Int64.Type}, {"Merged.34", Int64.Type}, {"Merged.35", Int64.Type}, {"Merged.36", type text}, {"Merged.37", type text}, {"Merged.38", type date}, {"Merged.39", Int64.Type}, {"Merged.40", Int64.Type}, {"Merged.41", Int64.Type}, {"Merged.42", type text}, {"Merged.43", type text}, {"Merged.44", type date}, {"Merged.45", Int64.Type}, {"Merged.46", Int64.Type}, {"Merged.47", Int64.Type}, {"Merged.48", type text}})
+in
+    #"Changed Type1"
+
+
+
+Inv:
+let
+    folderpath = Excel.CurrentWorkbook() {[Name="folderpath"]} [Content] {0} [Column1],
+    Source = Excel.Workbook(File.Contents(folderpath&"HVAC PM Builder.xlsm"), null, true),
+    HVAC_NTP_DefinedName = Source{[Item="HVAC_NTP",Kind="DefinedName"]}[Data],
+    #"Promoted Headers" = Table.PromoteHeaders(HVAC_NTP_DefinedName, [PromoteAllScalars=true]),
+    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers",{{"Area", type text}, {"District", type text}, {"Invoicing Finance Number", type text}, {"Station Name", type text}, {"Street Address", type text}, {"City", type text}, {"ST", type text}, {"ZIP CODE + 4", type text}, {"County", type text}, {"Type of Equipment #(lf)(RTU, Boiler, AHU, etc)", type text}, {"Brand/Manufacturer", type text}, {"Model #", type text}, {"Serial #", type text}, {"Eq Name", type text}, {"Short Eq", type text}, {"Quantity", Int64.Type}, {"Jan#(lf)", type number}, {"Apr#(lf)", type number}, {"July#(lf)", type number}, {"Oct#(lf)", type number}, {"POP End", type date}, {"Supplier", type text}}),
+
+   #"Unpivoted Only Selected Columns" = Table.Unpivot(#"Changed Type", {"Jan#(lf)", "Apr#(lf)", "July#(lf)", "Oct#(lf)"}, "Attribute", "Value"),
+    #"Trimmed Text" = Table.TransformColumns(#"Unpivoted Only Selected Columns",{{"Attribute", Text.Trim, type text}}),
+    #"Cleaned Text" = Table.TransformColumns(#"Trimmed Text",{{"Attribute", Text.Clean, type text}}),
+    #"Renamed Columns" = Table.RenameColumns(#"Cleaned Text",{{"Attribute", "Month Name"}, {"Value", "NTE"}}),
+    #"Merged Queries" = Table.NestedJoin(#"Renamed Columns", {"Month Name"}, #"Months & Quarters", {"Month Name"}, "Months & Quarters", JoinKind.LeftOuter),
+    #"Expanded Months & Quarters" = Table.ExpandTableColumn(#"Merged Queries", "Months & Quarters", {"Quarter", "Start Date", "3 month breakout for inv"}, {"Quarter", "Start Date", "3 month breakout for inv"}),
+    #"Inserted Merged Column" = Table.AddColumn(#"Expanded Months & Quarters", "Concat", each Text.Combine({[Short Eq], [Quarter]}, "-"), type text),
+    #"Merged Queries1" = Table.NestedJoin(#"Inserted Merged Column", {"Concat"}, #"NEW Procedure Helper", {"Unique Id"}, "NEW Procedure Helper", JoinKind.LeftOuter),
+    #"Expanded NEW Procedure Helper" = Table.ExpandTableColumn(#"Merged Queries1", "NEW Procedure Helper", {"JAQS", "Quarter", "OLD Procedure", "NEW Procedure", "Other:", "Freq Group", "Starte Date", "1", "0", "1_1"}, {"JAQS", "Quarter.1", "OLD Procedure", "NEW Procedure", "Other:", "Freq Group", "Starte Date", "1", "0", "1_1"}),
+    #"Merged Queries2" = Table.NestedJoin(#"Expanded NEW Procedure Helper", {"Invoicing Finance Number"}, #"pm loader builder", {"WorkZoneNumber"}, "pm loader builder", JoinKind.LeftOuter),
+    #"Expanded pm loader builder" = Table.ExpandTableColumn(#"Merged Queries2", "pm loader builder", {"WorkZoneName 1", "Path"}, {"WorkZoneName 1", "Path"}),
+    #"Merged Columns" = Table.CombineColumns(#"Expanded pm loader builder",{"WorkZoneName 1", "Quarter.1"},Combiner.CombineTextByDelimiter("-", QuoteStyle.None),"PM Name"),
+    #"Inserted Merged Column1" = Table.AddColumn(#"Merged Columns", "Long Path", each Text.Combine({[Path], [Eq Name]}, ">"), type text),
+    #"Filtered Rows" = Table.SelectRows(#"Inserted Merged Column1", each [NTE] <> 0),
+    #"Removed Other Columns" = Table.SelectColumns(#"Filtered Rows",{"Invoicing Finance Number", "Quarter", "3 month breakout for inv"}),
+    #"Removed Duplicates" = Table.Distinct(#"Removed Other Columns"),
+    #"Split Column by Delimiter" = Table.SplitColumn(#"Removed Duplicates", "3 month breakout for inv", Splitter.SplitTextByDelimiter(";", QuoteStyle.Csv), {"3 month breakout for inv.1", "3 month breakout for inv.2", "3 month breakout for inv.3", "3 month breakout for inv.4", "3 month breakout for inv.5", "3 month breakout for inv.6", "3 month breakout for inv.7", "3 month breakout for inv.8", "3 month breakout for inv.9", "3 month breakout for inv.10", "3 month breakout for inv.11", "3 month breakout for inv.12", "3 month breakout for inv.13", "3 month breakout for inv.14", "3 month breakout for inv.15", "3 month breakout for inv.16", "3 month breakout for inv.17", "3 month breakout for inv.18", "3 month breakout for inv.19", "3 month breakout for inv.20", "3 month breakout for inv.21", "3 month breakout for inv.22", "3 month breakout for inv.23", "3 month breakout for inv.24"}),
+    #"Changed Type1" = Table.TransformColumnTypes(#"Split Column by Delimiter",{{"3 month breakout for inv.1", type text}, {"3 month breakout for inv.2", type text}, {"3 month breakout for inv.3", type text}, {"3 month breakout for inv.4", Int64.Type}, {"3 month breakout for inv.5", type text}, {"3 month breakout for inv.6", type text}, {"3 month breakout for inv.7", type text}, {"3 month breakout for inv.8", type text}, {"3 month breakout for inv.9", type text}, {"3 month breakout for inv.10", type text}, {"3 month breakout for inv.11", type text}, {"3 month breakout for inv.12", Int64.Type}, {"3 month breakout for inv.13", type text}, {"3 month breakout for inv.14", type text}, {"3 month breakout for inv.15", type text}, {"3 month breakout for inv.16", type text}, {"3 month breakout for inv.17", type text}, {"3 month breakout for inv.18", type text}, {"3 month breakout for inv.19", type text}, {"3 month breakout for inv.20", Int64.Type}, {"3 month breakout for inv.21", type text}, {"3 month breakout for inv.22", type text}, {"3 month breakout for inv.23", type text}, {"3 month breakout for inv.24", type text}})
+in
+    #"Changed Type1"
